@@ -1,55 +1,44 @@
-# app_streamlit.py
-
 import streamlit as st
 import pandas as pd
 import unicodedata
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import json  # necessário para usar os secrets do Streamlit
+import json
 
-# Função para normalizar o texto (sem acento e minúsculo)
 def normalizar(texto):
     texto = str(texto)
     texto = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("utf-8")
     return texto.lower()
 
-# Conectar à planilha do Google Sheets usando as credenciais do Streamlit secrets
 def conectar_planilha():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    
-    # Pega o dicionário das credenciais do arquivo .streamlit/secrets.toml
     credenciais_dict = st.secrets["google"]
     credentials = ServiceAccountCredentials.from_json_keyfile_dict(credenciais_dict, scope)
-    
     gc = gspread.authorize(credentials)
-    sheet = gc.open_by_url("https://docs.google.com/spreadsheets/d/1LPzNJYotNXRIvWOLtz7QlZa8sN2KNiMv_ZXf8gWyDs8/edit#gid=0")
+    sheet = gc.open_by_url(
+        "https://docs.google.com/spreadsheets/d/1LPzNJYotNXRIvWOLtz7QlZa8sN2KNiMv_ZXf8gWyDs8/edit#gid=0"
+    )
     worksheet = sheet.get_worksheet(0)
     dados = worksheet.get_all_records()
     return pd.DataFrame(dados)
 
-# Interface web com Streamlit
 def main():
     st.set_page_config(page_title="Busca de Números por Cidade", layout="centered")
-
     st.markdown("<h1 style='text-align: center; color: #00ffcc;'>🔍 Busca de Números por Cidade</h1>", unsafe_allow_html=True)
 
     with st.spinner("Carregando dados da planilha..."):
         df = conectar_planilha()
 
-    cidade_busca = st.text_input("Digite o nome da cidade:", "").strip()
-
+    cidade_busca = st.text_input("Digite o nome da cidade:").strip()
     if st.button("Pesquisar"):
         if cidade_busca:
             cidade_normalizada = normalizar(cidade_busca)
-
-            resultados = []
-            for _, linha in df.iterrows():
-                cidade_planilha = normalizar(linha.get("CIDADE", ""))
-                if cidade_normalizada in cidade_planilha:
-                    numero = linha.get("NUMERO", "")
-                    if numero:
-                        resultados.append(numero)
-
+            resultados = [
+                linha.get("NUMERO", "")
+                for _, linha in df.iterrows()
+                if cidade_normalizada in normalizar(linha.get("CIDADE", ""))
+            ]
+            resultados = [r for r in resultados if r]
             if resultados:
                 st.success(f"{len(resultados)} número(s) encontrado(s):")
                 for numero in resultados:
