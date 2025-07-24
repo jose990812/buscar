@@ -5,6 +5,7 @@ import pandas as pd
 import unicodedata
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import json  # necessário para usar os secrets do Streamlit
 
 # Função para normalizar o texto (sem acento e minúsculo)
 def normalizar(texto):
@@ -12,10 +13,14 @@ def normalizar(texto):
     texto = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("utf-8")
     return texto.lower()
 
-# Conectar à planilha do Google Sheets
+# Conectar à planilha do Google Sheets usando as credenciais do Streamlit secrets
 def conectar_planilha():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    credentials = ServiceAccountCredentials.from_json_keyfile_name("credenciais.json", scope)
+    
+    # Pega o dicionário das credenciais do arquivo .streamlit/secrets.toml
+    credenciais_dict = st.secrets["google"]
+    credentials = ServiceAccountCredentials.from_json_keyfile_dict(credenciais_dict, scope)
+    
     gc = gspread.authorize(credentials)
     sheet = gc.open_by_url("https://docs.google.com/spreadsheets/d/1LPzNJYotNXRIvWOLtz7QlZa8sN2KNiMv_ZXf8gWyDs8/edit#gid=0")
     worksheet = sheet.get_worksheet(0)
@@ -38,8 +43,8 @@ def main():
             cidade_normalizada = normalizar(cidade_busca)
 
             resultados = []
-            for i, linha in df.iterrows():
-                cidade_planilha = normalizar(linha["CIDADE"])
+            for _, linha in df.iterrows():
+                cidade_planilha = normalizar(linha.get("CIDADE", ""))
                 if cidade_normalizada in cidade_planilha:
                     numero = linha.get("NUMERO", "")
                     if numero:
@@ -49,10 +54,13 @@ def main():
                 st.success(f"{len(resultados)} número(s) encontrado(s):")
                 for numero in resultados:
                     st.code(numero)
+                st.download_button("📥 Baixar Números", "\n".join(resultados), file_name="numeros.txt")
             else:
                 st.warning("Nenhum número encontrado para essa cidade.")
         else:
             st.error("Digite o nome de uma cidade para pesquisar.")
+
+    st.markdown("<hr><p style='text-align:center;color:gray;'>Desenvolvido por Ailton Mota © 2025</p>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
