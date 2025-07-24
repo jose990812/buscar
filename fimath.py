@@ -1,59 +1,31 @@
-# app_streamlit.py
-
 import streamlit as st
-import pandas as pd
-import unicodedata
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import speedtest
+import socket
 
-# Função para normalizar o texto (sem acento e minúsculo)
-def normalizar(texto):
-    texto = str(texto)
-    texto = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("utf-8")
-    return texto.lower()
+st.set_page_config(page_title="Testador de Conexão", layout="centered")
 
-# Conectar à planilha do Google Sheets
-def conectar_planilha():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    credentials = ServiceAccountCredentials.from_json_keyfile_name("credenciais.json", scope)
-    gc = gspread.authorize(credentials)
-    sheet = gc.open_by_url("https://docs.google.com/spreadsheets/d/1LPzNJYotNXRIvWOLtz7QlZa8sN2KNiMv_ZXf8gWyDs8/edit#gid=0")
-    worksheet = sheet.get_worksheet(0)
-    dados = worksheet.get_all_records()
-    return pd.DataFrame(dados)
+st.markdown("## 🌐 Testador de Conexão de Internet")
 
-# Interface web com Streamlit
-def main():
-    st.set_page_config(page_title="Busca de Números por Cidade", layout="centered")
+if st.button("🚀 Iniciar Teste de Conexão"):
+    with st.spinner("⏳ Testando conexão..."):
+        try:
+            # Verifica se há internet
+            socket.create_connection(("www.google.com", 80), timeout=5)
+            st.success("✅ Conectado à Internet")
 
-    st.markdown("<h1 style='text-align: center; color: #00ffcc;'>🔍 Busca de Números por Cidade</h1>", unsafe_allow_html=True)
+            # Faz o teste de velocidade
+            stt = speedtest.Speedtest()
+            stt.get_best_server()
+            download = stt.download()
+            upload = stt.upload()
+            ping = stt.results.ping
 
-    with st.spinner("Carregando dados da planilha..."):
-        df = conectar_planilha()
+            st.markdown(f"🔻 **Download:** `{download / 1_000_000:.2f} Mbps`")
+            st.markdown(f"🔺 **Upload:** `{upload / 1_000_000:.2f} Mbps`")
+            st.markdown(f"📡 **Ping:** `{ping:.0f} ms`")
 
-    cidade_busca = st.text_input("Digite o nome da cidade:", "").strip()
+        except:
+            st.error("❌ Sem conexão ou erro no teste")
 
-    if st.button("Pesquisar"):
-        if cidade_busca:
-            cidade_normalizada = normalizar(cidade_busca)
 
-            resultados = []
-            for i, linha in df.iterrows():
-                cidade_planilha = normalizar(linha["CIDADE"])
-                if cidade_normalizada in cidade_planilha:
-                    numero = linha.get("NUMERO", "")
-                    if numero:
-                        resultados.append(numero)
-
-            if resultados:
-                st.success(f"{len(resultados)} número(s) encontrado(s):")
-                for numero in resultados:
-                    st.code(numero)
-            else:
-                st.warning("Nenhum número encontrado para essa cidade.")
-        else:
-            st.error("Digite o nome de uma cidade para pesquisar.")
-
-if __name__ == "__main__":
-    main()
 
